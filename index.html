@@ -21,9 +21,6 @@ canvas{display:block;width:100%;height:100%;touch-action:none}
 .row{margin-bottom:9px}
 .row label{display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px}
 .row input{width:100%;accent-color:#ff2975}
-.panel button{width:100%;border:none;background:#ff2975;color:#fff;border-radius:8px;padding:7px;font-family:inherit;font-size:13px;cursor:pointer;margin-top:2px}
-.panel hr{border:none;border-top:1px solid rgba(45,226,230,.3);margin:12px 0 10px}
-.panel button.alt{background:#2de2e6;color:#07061a;font-weight:600}
 @media (pointer:coarse){.hint.desk{display:none}}
 @media (pointer:fine){.hint.mob{display:none}}
 </style>
@@ -33,19 +30,8 @@ canvas{display:block;width:100%;height:100%;touch-action:none}
   <canvas id="c"></canvas>
   <button class="gear" id="gear" aria-label="Réglages">⚙</button>
   <div class="panel" id="panel">
-    <h3>Réglages du feeling</h3>
-    <div class="row"><label>Gravité <span id="v-gravity"></span></label><input type="range" id="gravity" min="700" max="2600" step="50"></div>
-    <div class="row"><label>Vitesse des flippers <span id="v-flipSpeed"></span></label><input type="range" id="flipSpeed" min="12" max="50" step="1"></div>
-    <div class="row"><label>Rebond sur flipper <span id="v-flipBounce"></span></label><input type="range" id="flipBounce" min="0" max="0.8" step="0.05"></div>
-    <div class="row"><label>Puissance bumpers <span id="v-bumperKick"></span></label><input type="range" id="bumperKick" min="200" max="1200" step="25"></div>
-    <div class="row"><label>Puissance slingshots <span id="v-slingKick"></span></label><input type="range" id="slingKick" min="100" max="900" step="25"></div>
-    <div class="row"><label>Vitesse des ennemis <span id="v-enemySpeed"></span></label><input type="range" id="enemySpeed" min="0.3" max="2" step="0.1"></div>
-    <div class="row"><label>Dégâts de la bille <span id="v-ballDmg"></span></label><input type="range" id="ballDmg" min="0.3" max="3" step="0.1"></div>
+    <h3>Réglages</h3>
     <div class="row"><label>Son <span id="v-sound"></span></label><input type="range" id="sound" min="0" max="1" step="0.1"></div>
-    <button id="reset">Valeurs par défaut</button>
-    <hr>
-    <div class="row"><label>Sauter à la vague <span id="v-jump"></span></label><input type="range" id="jump" min="1" max="20" step="1" value="5"></div>
-    <button class="alt" id="jumpBtn">Nouvelle partie avec bonus aléatoires</button>
   </div>
 </div>
 <p class="hint desk"><kbd>←</kbd>/<kbd>Q</kbd> flipper gauche · <kbd>→</kbd>/<kbd>D</kbd> flipper droit · maintiens <kbd>Espace</kbd> pour lancer · <kbd>N</kbd> secouer la table</p>
@@ -208,20 +194,15 @@ addEventListener('blur',()=>{flippers.forEach(f=>f.on=false);touches.clear()});
 const panel=document.getElementById('panel');
 document.getElementById('gear').onclick=()=>panel.classList.toggle('open');
 const fmt={gravity:v=>v,flipSpeed:v=>v,flipBounce:v=>(+v).toFixed(2),bumperKick:v=>v,slingKick:v=>v,enemySpeed:v=>'×'+(+v).toFixed(1),ballDmg:v=>'×'+(+v).toFixed(1),sound:v=>Math.round(v*100)+'%'};
-function bindSliders(){Object.keys(DEF).forEach(k=>{const el=document.getElementById(k),lab=document.getElementById('v-'+k);el.value=P[k];lab.textContent=fmt[k](P[k]);el.oninput=()=>{P[k]=+el.value;lab.textContent=fmt[k](el.value)}})}
-document.getElementById('reset').onclick=()=>{Object.assign(P,DEF);bindSliders()};
+function bindSliders(){Object.keys(DEF).forEach(k=>{const el=document.getElementById(k);if(!el)return;const lab=document.getElementById('v-'+k);el.value=P[k];lab.textContent=fmt[k](P[k]);el.oninput=()=>{P[k]=+el.value;lab.textContent=fmt[k](el.value)}})}
 bindSliders();
-/* saut de vague : bonus tirés au hasard comme si les vagues précédentes avaient été jouées */
-const jumpEl=document.getElementById('jump'),jumpLab=document.getElementById('v-jump');
-const jumpTxt=()=>{const w=+jumpEl.value;jumpLab.textContent=w+(w>15?' · infini':' · ch. '+Math.ceil(w/5))+(w%5===0?' · boss':'')};
-jumpEl.oninput=jumpTxt;jumpTxt();
+/* saut de vague (tests) : bonus tirés au hasard comme si les vagues précédentes avaient été jouées */
 function jumpTo(w){newGame();const n=w-1,lv=Math.round(n*1.6);
   for(let i=0;i<lv;i++){const u=pickChoices()[Math.floor(Math.random()*3)];if(u.id[0]!=='_')U[u.id]++}level=1+lv;
   const types=Object.keys(PIECES);for(let i=0;i<n;i++){const type=types[Math.floor(Math.random()*types.length)],same=SOCKETS.filter(s=>s.p&&s.p.type===type&&s.p.lvl<3),free=SOCKETS.filter(s=>!s.p);
     const s=same.length&&(Math.random()<.5||!free.length)?same[Math.floor(Math.random()*same.length)]:free.length?free[Math.floor(Math.random()*free.length)]:null;if(!s)continue;if(s.p)s.p.lvl++;else s.p={type,lvl:1,charge:0}}
   rebuildPieces();hp=maxHp();wave=n;endless=w>15;score=0;
   const own=UPG.filter(u=>U[u.id]>0).length,pcs=SOCKETS.filter(s=>s.p).length;say('Départ à la vague '+w,lv+' améliorations ('+own+' types) · '+pcs+' pièces posées',3)}
-document.getElementById('jumpBtn').onclick=e=>{jumpTo(+jumpEl.value);panel.classList.remove('open');e.target.blur()};
 
 /* ================= Ennemis & vagues ================= */
 const ET={
@@ -627,7 +608,8 @@ function drawHUD(c,t){
   if(camY+VH<DANGER+30){const near=enemies.filter(e=>e.y>DANGER-380).length;if(near){c.globalAlpha=.6+.4*Math.sin(t*8);const s='▼ '+near+' ENNEMI'+(near>1?'S':'')+' PRÈS DE LA LIGNE';c.font=`700 12px ${FONT}`;const tw=c.measureText(s).width+26;npanel(c,250-tw/2,VH-46,tw,28,N.red);txt(c,s,250,VH-27,12,N.red,'center',700);c.globalAlpha=1}}
   if(state==='ready'&&ballInLane()){c.globalAlpha=.6+.4*Math.sin(t*4);npanel(c,132,583,240,34,N.cyan);txt(c,coarse?"MAINTIENS L'ÉCRAN POUR LANCER":'MAINTIENS ESPACE POUR LANCER',252,605,13,N.cyan,'center',700);c.globalAlpha=1;
     if(plunger.charge>0){rr(c,177,624,150,6,3);c.fillStyle='rgba(255,255,255,.1)';c.fill();rr(c,177,624,150*plunger.charge,6,3);gfill(c,N.pink,1)}}
-  if(banner&&banner.t>0){const a=Math.min(1,banner.t*3,(banner.max-banner.t)*6);c.globalAlpha=a;const y=330-(1-Math.min(1,(banner.max-banner.t)*4))*30,h=banner.sub?64:46;npanel(c,107,y-h/2,290,h,N.cyan);gtxt(c,banner.txt.toUpperCase(),252,banner.sub?y-2:y+8,21,N.white);if(banner.sub)txt(c,banner.sub,252,y+21,12,N.cyan,'center',500);c.globalAlpha=1}
+  if(banner&&banner.t>0){const a=Math.min(1,banner.t*3,(banner.max-banner.t)*6);c.globalAlpha=a;const y=330-(1-Math.min(1,(banner.max-banner.t)*4))*30,T=banner.txt.toUpperCase();c.font=`700 21px ${FONT}`;const tw=c.measureText(T).width;c.font=`500 12px ${FONT}`;const sw=banner.sub?c.measureText(banner.sub).width:0,bw=Math.min(460,Math.max(290,tw+40,sw+40)),ln=banner.sub&&sw>bw-40?2:1,off=(ln-1)*8,h=banner.sub?48+16*ln:46;
+    npanel(c,252-bw/2,y-h/2,bw,h,N.cyan);gtxt(c,T,252,banner.sub?y-2-off:y+8,21,N.white);if(banner.sub){c.font=`500 12px ${FONT}`;c.fillStyle=N.cyan;c.textAlign='center';wrap(c,banner.sub,252,y+21-off,bw-40,16)}c.globalAlpha=1}
   if(hurtFlash>0){c.fillStyle=`rgba(255,41,117,${hurtFlash*.2})`;c.fillRect(0,0,W,VH)}
   if(flash>0){c.fillStyle=`rgba(232,251,255,${flash*.35})`;c.fillRect(0,0,W,VH)}}
 function drawIcon(c,u,x,y,col){c.save();c.translate(x,y);const bI=(bx,by,r)=>{c.beginPath();c.arc(bx,by,r,0,TAU);gfill(c,col,.2);gs(c,col,2)};
