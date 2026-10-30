@@ -150,9 +150,9 @@ function ballPhysics(dt){
   for(const b of bumpers){if(Math.abs(b.y-ball.y)>60)continue;if(collideCircle(b,P.bumperKick))bumperHit(b)}
   for(const p of posts)if(Math.abs(p.y-ball.y)<30&&collideCircle(p,0))sfx(()=>rustle(.03,.12,3000));
   for(const e of enemies)if(Math.abs(e.y-ball.y)<e.r+BR+4)collideEnemy(e);
-  for(const s of saucers)if(s.cd<=0&&s.hold<=0&&Math.hypot(ball.x-s.x,ball.y-s.y)<11&&Math.hypot(ball.vx,ball.vy)<1400){s.hold=s.kind==='laser'?.7:s.kind==='lift'?.45:.9;s.ball=ball;tone(200,.25,'triangle',.2,.5);rustle(.1,.25,600)}
+  for(const s of saucers)if(s.cd<=0&&s.hold<=0&&Math.hypot(ball.x-s.x,ball.y-s.y)<11&&Math.hypot(ball.vx,ball.vy)<1400){s.hold=s.kind==='laser'?.7:s.kind==='lift'?.45:.9;s.ball=ball;addMult(s.kind==='boum'?.35:s.kind==='laser'?.5:.2,s.x,s.y-46);tone(200,.25,'triangle',.2,.5);rustle(.1,.25,600)}
   if(ball.y<200)for(let i=0;i<3;i++){const cx=(LANES.xs[i]+LANES.xs[i+1])/2,inside=Math.abs(ball.x-cx)<19&&ball.y>LANES.y0&&ball.y<LANES.y1;
-    if(inside&&!LANES.occ[i]){LANES.occ[i]=true;if(!LANES.lit[i]){LANES.lit[i]=true;addScore(50,cx,LANES.y0-26);tone(700+i*120,.08,'triangle',.15);if(LANES.lit.every(Boolean))lanesDone()}}else if(!inside&&ball===balls[0])LANES.occ[i]=false}
+    if(inside&&!LANES.occ[i]){LANES.occ[i]=true;if(!LANES.lit[i]){LANES.lit[i]=true;addScore(50,cx,LANES.y0-26);addMult(.25,cx,LANES.y0-48);tone(700+i*120,.08,'triangle',.15);if(LANES.lit.every(Boolean))lanesDone()}}else if(!inside&&ball===balls[0])LANES.occ[i]=false}
   const insp=ball.x<74&&ball.y>528&&ball.y<552;if(insp&&!spinner.inside){spinner.w+=Math.abs(ball.vy)*.035;orbit.a=gt;checkOrbit()}if(ball===balls[0])spinner.inside=insp;
   if(ball.y<140&&ball.x>370){const d=Math.hypot(ball.x-ARC.cx,ball.y-ARC.cy);if(d>IN.r&&d<ARC.r){orbit.b=gt;checkOrbit()}}
   for(let i=stars.length-1;i>=0;i--){const st=stars[i];if(Math.abs(st.y-ball.y)<30&&Math.hypot(st.x-ball.x,st.y-ball.y)<BR+12)collectStar(i)}
@@ -325,7 +325,7 @@ const UPG=[
 const FILLER=[{id:'_heal',name:'Recharge',fam:'Bonus',max:99,desc:()=>'Soigne 30 PV'},{id:'_pts',name:'Pluie de bonus',fam:'Bonus',max:99,desc:()=>'+5 000 points'}];
 const FAMC={Pouvoir:'#2de2e6',Bille:'#c9d4ff',Flippers:'#b388ff',Table:'#fdfd2f',Passif:'#ff2975',Bonus:'#7cff6b'};
 let extraTimers=[],xp=0,level=1,pendingLv=0,stars=[],planes=[],bolts=[],shockFx=null,shockCd=0,bannerLeft=0,turretT=1,turretA=-2.4;
-let bumpCount=0,tornados=[],meteors=[],lasers=[],combo=0,comboT=0,frenzyT=0;const orbit={a:-9,b:-9,cd:0};
+let bumpCount=0,tornados=[],meteors=[],lasers=[],combo=0,comboT=0,frenzyT=0,mult=1,multIdle=0;const orbit={a:-9,b:-9,cd:0};
 const lu={choices:[],sel:0,t:0,prev:'play'};
 const maxHp=()=>100+25*U.heart;
 const xpNeed=()=>8+4*(level-1);
@@ -340,18 +340,21 @@ function onKill(e){combo=comboT>0?combo+1:1;comboT=1.8;if(combo>=12&&frenzyT<=0)
 function chainFrom(e,d){let src=e;const hit=new Set([e]);for(let k=0;k<U.chain;k++){let best=null,bd=170;for(const o of enemies){if(o.dead||hit.has(o)||o.spawn<.6||Math.abs(o.y-src.y)>170)continue;const dd=Math.hypot(o.x-src.x,o.y-src.y);if(dd<bd){bd=dd;best=o}}
   if(!best)break;bolts.push({x1:src.x,y1:src.y,x2:best.x,y2:best.y,life:.2,seed:Math.random()*99});hit.add(best);hurt(best,Math.max(4,Math.round(d*.4)),false,true);src=best}if(hit.size>1)sfx(()=>tone(1500,.06,'sawtooth',.06,.5))}
 function shockWave(f){shockCd=1.5;shockFx={t:.45,x:f.px+(f.side==='L'?35:-35),y:f.py};for(const e of enemies){if(e.dead||e.spawn<.6||e.y<f.py-380||e.y>f.py+40)continue;e.ky-=200;e.kx+=(e.x-f.px)*.4;if(e.type==='ori')e.cy-=8;hurt(e,6*U.shock,false,true)}tone(90,.25,'sine',.25,2)}
-function lanesDone(){LANES.lit=[false,false,false];const h=Math.min(15,maxHp()-hp);if(h>0&&started){hp+=h;say('Couloirs complétés !','+'+h+' PV')}else{score+=1000;say('Couloirs complétés !','+1000')}tone(523,.1,'triangle',.18);setTimeout(()=>tone(784,.2,'triangle',.18),90)}
-function saucerBlast(s){let n=0;for(const e of enemies){if(!e.dead&&e.spawn>=.6&&Math.hypot(e.x-s.x,e.y-s.y)<210){hurt(e,40,false,true);n++}}
+/* multiplicateur de table : les tirs d'adresse le chargent, il amplifie les pouvoirs */
+const MULT_MAX=5,mtxt=()=>mult>1.05?'  ·  ×'+mult.toFixed(1):'';
+function addMult(n,x,y){const old=mult;mult=Math.min(MULT_MAX,mult+n);multIdle=0;if(mult>old){pop(x,y,'TABLE ×'+mult.toFixed(1),mult>=3.5?N.pink:N.yellow,15);sfx(()=>tone(600+mult*120,.1,'triangle',.12,1.4))}}
+function lanesDone(){LANES.lit=[false,false,false];addMult(.5,270,LANES.y0-48);const h=Math.min(15,maxHp()-hp);if(h>0&&started){hp+=h;say('Couloirs complétés !','+'+h+' PV')}else{score+=1000;say('Couloirs complétés !','+1000')}tone(523,.1,'triangle',.18);setTimeout(()=>tone(784,.2,'triangle',.18),90)}
+function saucerBlast(s){let n=0;for(const e of enemies){if(!e.dead&&e.spawn>=.6&&Math.hypot(e.x-s.x,e.y-s.y)<210){hurt(e,Math.round(40*mult),false,true);n++}}
   for(let i=0;i<40;i++){const a=i/40*TAU,v=300+Math.random()*140;parts.push({x:s.x,y:s.y,vx:Math.cos(a)*v,vy:Math.sin(a)*v,rot:Math.random()*TAU,vr:(Math.random()-.5)*14,life:.7,max:1,c:CONF[i%4],s:4,g:300})}
   rings.push({x:s.x,y:s.y,r:210,t:.4,max:.4,col:'231,111,81'});pop(s.x,s.y-30,n?'BOUM ! ×'+n:'BOUM !',PAL.navy,20);shake=Math.max(shake,8);tone(140,.3,'sawtooth',.2,.4);rustle(.2,.4,500)}
 let rings=[];
-function checkOrbit(){if(orbit.cd>0)return;if(Math.abs(orbit.a-orbit.b)<2.5){orbit.cd=8;orbit.a=-9;orbit.b=-19;meteorShower()}}
-function meteorShower(){const n=14+6*U.meteor,live=enemies.filter(e=>!e.dead).sort((a,b)=>b.y-a.y);say('Pluie de météores !',n+' bolides de plasma',1.8);flash=.4;tone(200,.6,'sawtooth',.12,.3);
-  for(let i=0;i<n;i++){const tg=live.length?live[i%Math.max(1,Math.min(live.length,n))]:null;const tx=tg?tg.x+(Math.random()-.5)*20:rnd(80,440),ty=tg?tg.y+tg.spd*.6:rnd(DANGER-500,DANGER-60);meteors.push({tx,ty,t:-i*.11,fall:.6})}}
-function spawnTornado(x,y){tornados.push({x,y,t:6+U.tornado*1.5,max:6+U.tornado*1.5,r:80+16*U.tornado,a:0,dps:30+12*U.tornado});say('Tornade !','',1.4);flash=.3;tone(120,.7,'sawtooth',.1,2.5);rustle(.6,.3,500)}
+function checkOrbit(){if(orbit.cd>0)return;if(Math.abs(orbit.a-orbit.b)<2.5){orbit.cd=8;orbit.a=-9;orbit.b=-19;addMult(.75,270,190);meteorShower()}}
+function meteorShower(){const n=14+6*U.meteor,live=enemies.filter(e=>!e.dead).sort((a,b)=>b.y-a.y);say('Pluie de météores !',n+' bolides de plasma'+mtxt(),1.8);flash=.4;tone(200,.6,'sawtooth',.12,.3);
+  for(let i=0;i<n;i++){const tg=live.length?live[i%Math.max(1,Math.min(live.length,n))]:null;const tx=tg?tg.x+(Math.random()-.5)*20:rnd(80,440),ty=tg?tg.y+tg.spd*.6:rnd(DANGER-500,DANGER-60);meteors.push({tx,ty,t:-i*.11,fall:.6,k:mult})}}
+function spawnTornado(x,y){tornados.push({x,y,t:6+U.tornado*1.5,max:6+U.tornado*1.5,r:80+16*U.tornado,a:0,dps:(30+12*U.tornado)*mult});say('Tornade !',mult>1.05?'Puissance ×'+mult.toFixed(1):'',1.4);flash=.3;tone(120,.7,'sawtooth',.1,2.5);rustle(.6,.3,500)}
 function fireLaser(s){const half=32+10*U.laser;let bx=270,bc=-1;for(let x=60;x<=470;x+=15){let c=0;for(const e of enemies)if(!e.dead&&Math.abs(e.x-x)<half)c++;if(c>bc){bc=c;bx=x}}
-  lasers.push({x:bx,half,t:1.1,max:1.1,dps:45+10*U.laser});const dmg=70+25*U.laser;let n=0;for(const e of enemies)if(!e.dead&&e.spawn>=.6&&Math.abs(e.x-bx)<half+e.r){hurt(e,dmg,false,true);n++}
-  say('Mégalaser !',n+' ennemis touchés',1.4);flash=.8;shake=Math.max(shake,10);tone(880,.8,'sawtooth',.12,.25);rustle(.5,.35,300)}
+  lasers.push({x:bx,half,t:1.1,max:1.1,dps:(45+10*U.laser)*mult});const dmg=Math.round((70+25*U.laser)*mult);let n=0;for(const e of enemies)if(!e.dead&&e.spawn>=.6&&Math.abs(e.x-bx)<half+e.r){hurt(e,dmg,false,true);n++}
+  say('Mégalaser !',n+' ennemis touchés'+mtxt(),1.4);flash=.8;shake=Math.max(shake,10);tone(880,.8,'sawtooth',.12,.25);rustle(.5,.35,300)}
 function pickChoices(){const av=UPG.filter(u=>U[u.id]<u.max);for(let i=av.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[av[i],av[j]]=[av[j],av[i]]}const ch=av.slice(0,3);let f=0;while(ch.length<3)ch.push(FILLER[f++%2]);return ch}
 function openLevelUp(){lu.prev=state==='levelup'?lu.prev:state;state='levelup';lu.t=0;lu.sel=0;lu.choices=pickChoices();flippers.forEach(f=>f.on=false);plunger.charging=false;plunger.charge=0;touches.clear();
   tone(523,.1,'triangle',.2);setTimeout(()=>tone(659,.1,'triangle',.2),80);setTimeout(()=>tone(880,.2,'triangle',.2),160)}
@@ -366,7 +369,7 @@ function luPointer(e){const r=cv.getBoundingClientRect(),x=(e.clientX-r.left)/r.
 function powersUpdate(dt){
   for(let i=extraTimers.length-1;i>=0;i--){extraTimers[i]-=dt;if(extraTimers[i]<=0){extraTimers.splice(i,1);spawnExtraBall()}}
   shockCd-=dt;if(shockFx){shockFx.t-=dt;if(shockFx.t<=0)shockFx=null}
-  orbit.cd-=dt;comboT-=dt;if(comboT<=0)combo=0;frenzyT=Math.max(0,frenzyT-dt);flash=Math.max(0,flash-dt*2);
+  orbit.cd-=dt;comboT-=dt;multIdle+=dt;if(multIdle>6&&mult>1)mult=Math.max(1,mult-.2*dt);if(comboT<=0)combo=0;frenzyT=Math.max(0,frenzyT-dt);flash=Math.max(0,flash-dt*2);
   const magR=90+70*U.magnet;
   for(let i=stars.length-1;i>=0;i--){const s=stars[i];s.life-=dt;s.vy+=(32-s.vy)*2*dt;s.vx*=Math.exp(-2*dt);s.x+=s.vx*dt+Math.sin(s.life*3+s.ph)*12*dt;s.y+=s.vy*dt;s.x=Math.max(40,Math.min(500,s.x));
     let bb=null,bd=magR;for(const b of balls){const d=Math.hypot(b.x-s.x,b.y-s.y);if(d<bd){bd=d;bb=b}}if(bb){const d=bd||1,v=260+(magR-d)*4;s.x+=(bb.x-s.x)/d*v*dt;s.y+=(bb.y-s.y)/d*v*dt}
@@ -384,7 +387,7 @@ function powersUpdate(dt){
     for(const e of enemies){if(e.dead||e.spawn<.6)continue;const dx=t.x-e.x,dy=t.y-e.y,d=Math.hypot(dx,dy);if(d<t.r){e.inTornado=true;if(!e.d.boss){e.x+=dx*2.2*dt+(-dy/(d||1))*90*dt;e.y+=dy*2.2*dt+(dx/(d||1))*90*dt}if(e.type==='ori'){e.cx=e.x;e.cy=e.y}e.tAcc=(e.tAcc||0)+t.dps*dt;if(e.tAcc>=6){const n=Math.floor(e.tAcc);e.tAcc-=n;hurt(e,n,false,true)}}}
     if(onScreen(t.y)&&Math.random()<.5&&parts.length<550){const a=Math.random()*TAU;parts.push({x:t.x+Math.cos(a)*t.r*.8,y:t.y+Math.sin(a)*t.r*.4,vx:-Math.sin(a)*200,vy:-80,rot:a,vr:8,life:.5,max:.6,c:CONF[Math.floor(Math.random()*4)],s:3,g:0})}
     if(t.t<=0)tornados.splice(i,1)}
-  for(let i=meteors.length-1;i>=0;i--){const m=meteors[i];m.t+=dt;if(m.t>=m.fall){const R=65+10*U.meteor,D=40+10*U.meteor;for(const e of enemies)if(!e.dead&&e.spawn>=.6&&Math.hypot(e.x-m.tx,e.y-m.ty)<R+e.r)hurt(e,D,false,true);
+  for(let i=meteors.length-1;i>=0;i--){const m=meteors[i];m.t+=dt;if(m.t>=m.fall){const R=65+10*U.meteor,D=Math.round((40+10*U.meteor)*(m.k||1));for(const e of enemies)if(!e.dead&&e.spawn>=.6&&Math.hypot(e.x-m.tx,e.y-m.ty)<R+e.r)hurt(e,D,false,true);
       rings.push({x:m.tx,y:m.ty,r:R,t:.3,max:.3,col:'244,162,97'});if(onScreen(m.ty)){burst(m.tx,m.ty,10,.9,'#d9c39a');shake=Math.max(shake,5);sfx(()=>{tone(90,.2,'sawtooth',.15,.5);rustle(.12,.3,400)})}meteors.splice(i,1)}}
   for(let i=lasers.length-1;i>=0;i--){const L=lasers[i];L.t-=dt;for(const e of enemies)if(!e.dead&&e.spawn>=.6&&Math.abs(e.x-L.x)<L.half+e.r){e.lAcc=(e.lAcc||0)+L.dps*dt;if(e.lAcc>=6){const n=Math.floor(e.lAcc);e.lAcc-=n;hurt(e,n,false,true)}}
     if(Math.random()<.6&&parts.length<550){const y=camY+Math.random()*VH;parts.push({x:L.x+(Math.random()-.5)*L.half*1.6,y,vx:0,vy:-200,rot:0,vr:6,life:.4,max:.5,c:Math.random()<.5?'#fff':PAL.yellow,s:3,g:0})}
@@ -595,7 +598,7 @@ function drawHUD(c,t){
   const hx=360,hw=165,mh=maxHp();rr(c,hx,10,hw,14,7);c.fillStyle='rgba(255,255,255,.07)';c.fill();rr(c,hx,10,Math.max(10,hw*hp/mh),14,7);gfill(c,hp/mh<.3?N.red:N.pink,.85);gs(c,N.pink,1);
   txt(c,Math.ceil(hp)+' / '+mh,hx+hw/2,21,10,'#fff','center',700);
   rr(c,hx,31,hw,6,3);c.fillStyle='rgba(255,255,255,.07)';c.fill();rr(c,hx,31,Math.max(6,hw*xp/xpNeed()),6,3);gfill(c,N.yellow,.9);txt(c,'NIV. '+level,hx-6,38,10,N.yellow,'right',700);
-  let x=12;const y=58;x+=chip(c,x,y,'TORNADE '+bumpCount+'/'+tornadoNeed(),N.violet)+6;if(combo>1)x+=chip(c,x,y,'COMBO ×'+combo,combo>=8?N.pink:N.cyan)+6;if(frenzyT>0)x+=chip(c,x,y,'FRÉNÉSIE '+Math.ceil(frenzyT)+' S','#ffd700')+6;
+  let x=12;const y=58;x+=chip(c,x,y,'TORNADE '+bumpCount+'/'+tornadoNeed(),N.violet)+6;{const mc=mult>=3.5?N.pink:mult>=2?N.yellow:N.cyan;c.globalAlpha=multIdle>6&&mult>1?.55+.45*Math.sin(t*8):1;x+=chip(c,x,y,'TABLE ×'+mult.toFixed(1),mc)+6;c.globalAlpha=1}if(combo>1)x+=chip(c,x,y,'COMBO ×'+combo,combo>=8?N.pink:N.cyan)+6;if(frenzyT>0)x+=chip(c,x,y,'FRÉNÉSIE '+Math.ceil(frenzyT)+' S','#ffd700')+6;
   if(boss){const B=boss.d,k=Math.max(0,boss.hp/boss.max);npanel(c,60,84,390,36,B.col,.9);gtxt(c,B.name.toUpperCase(),74,100,12,B.col,'left');txt(c,Math.ceil(Math.max(0,boss.hp))+' / '+boss.max,436,100,10,N.white,'right',700);
     rr(c,74,106,362,7,3.5);c.fillStyle='rgba(255,255,255,.08)';c.fill();rr(c,74,106,Math.max(7,362*k),7,3.5);gfill(c,B.col,.9);if(boss.flash>.4){rr(c,74,106,Math.max(7,362*k),7,3.5);gfill(c,'#fff',.6)}}
   const mx=514,mw=22,my=56,mhh=VH-66,k=mhh/WH;rr(c,mx,my,mw,mhh,8);c.fillStyle='rgba(7,6,26,.8)';c.fill();gs(c,'rgba(45,226,230,.6)',1);
@@ -682,7 +685,7 @@ function render(t){
 const gearEl=document.getElementById('gear');
 /* ================= Boucle ================= */
 const SUB=1/480;let acc=0,last=performance.now();
-function newGame(){for(const k in U)U[k]=0;xp=0;level=1;pendingLv=0;stars=[];planes=[];bolts=[];shockFx=null;bannerLeft=0;extraTimers=[];bumpCount=0;tornados=[];meteors=[];lasers=[];rings=[];combo=0;comboT=0;frenzyT=0;
+function newGame(){for(const k in U)U[k]=0;xp=0;level=1;pendingLv=0;stars=[];planes=[];bolts=[];shockFx=null;bannerLeft=0;extraTimers=[];bumpCount=0;tornados=[];meteors=[];lasers=[];rings=[];combo=0;comboT=0;frenzyT=0;mult=1;multIdle=0;
   endless=false;runT=0;boss=null;bossShots=[];DANGER=dangerT=DANGER0;
   score=0;hp=100;wave=0;enemies=[];packs=[];phase='idle';started=false;banner=null;kills=0;parts=[];pops=[];hurtFlash=0;slashes=[];LANES.lit=[false,false,false];spinner.w=0;floors.forEach(f=>{f.wear=0;f.off=0;f.pop=0});saucers.forEach(s=>s.cd=0);SOCKETS.forEach(s=>s.p=null);SOCKETS[4].p={type:'bumper',lvl:1,charge:0};rebuildPieces();resetBall();camY=WH-VH}
 function update(dt){sndBudget=0;
@@ -694,7 +697,7 @@ function update(dt){sndBudget=0;
   if(state!=='over'){acc+=sd;while(acc>=SUB){physics(SUB);acc-=SUB}enemiesUpdate(sd);waveUpdate(sd);powersUpdate(sd);piecesUpdate(sd)}
   if(state==='ready'&&ball.y<BOT+300){state='play';started=true}
   if(state!=='over'){for(let i=balls.length-1;i>=0;i--){const b=balls[i];if(b.hunter){b.life-=sd;if(b.life<=0||b.y>WH+30){balls.splice(i,1);if(onScreen(b.y))burst(b.x,b.y,14,.8,PAL.teal)}}}
-    if(ball.y>WH+30&&!ball.hunter){damagePlayer(15,252,BOT+850,'Bille perdue');if(state!=='over')resetBall();else balls=[ball]}else ball=balls[0]}
+    if(ball.y>WH+30&&!ball.hunter){damagePlayer(15,252,BOT+850,'Bille perdue');mult=1+(mult-1)/2;if(state!=='over')resetBall();else balls=[ball]}else ball=balls[0]}
   const sp=Math.hypot(ball.vx,ball.vy);if(sp<12&&!ballInLane()&&!saucers.some(s=>s.ball===ball)&&state!=='over'){stuckT+=dt;if(stuckT>2.5){ball.vy-=420;ball.vx+=(Math.random()-.5)*200;stuckT=0}}else stuckT=0;
   saucers.forEach(s=>s.cd-=dt);floors.forEach(f=>{if(f.pop>0)f.pop=Math.max(0,f.pop-dt*3);if(f.off>0){f.off-=sd;if(f.off<=0){f.off=0;f.pop=1;rustle(.12,.2,1500)}}});
   TIERS.forEach((ty,ti)=>{const fl=floors.filter(f=>f.tier===ti);if(fl[0].off>0)return;const inZ=state==='play'&&!ball.hunter&&ball.y<ty&&ball.y>(ti?TIERS[ti-1]:0);fl.forEach(f=>{f.wear=inZ?f.wear+sd:Math.max(0,f.wear-sd*.5)});if(fl[0].wear>=FLOOR_WEAR)fl.forEach(foldFloor)});
